@@ -1,0 +1,26 @@
+{
+  "name": "fullview",
+  "version": "1.0.0",
+  "description": "An intelligent image viewer with AI-powered descriptions",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc && npm run copy-assets",
+    "start": "npm run build && electron dist/index.js",
+    "dev": "tsc-watch --onSuccess \"npm run copy-assets && electron dist/index.js\"",
+    "copy-assets": "copyfiles -u 1 \"src/**/*.html\" dist/"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "commander": "^11.0.0",
+    "electron": "^28.0.0",
+    "form-data": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.0",
+    "copyfiles": "^2.4.1",
+    "typescript": "^5.2.2",
+    "tsc-watch": "^6.0.0"
+  }
+}
