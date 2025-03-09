@@ -11,19 +11,45 @@ const OLLAMA_API_URL = 'http://localhost:11434/api';
 
 /**
  * Get image description using multiple AI models
+ * @param imagePath Path to the image file
+ * @param models List of models to use
+ * @param onModelComplete Callback when a single model completes
  */
-export async function getImageDescription(imagePath: string, models: string[]): Promise<Record<string, string>> {
+export async function getImageDescription(
+  imagePath: string, 
+  models: string[], 
+  onModelComplete?: (model: string, description: string) => void
+): Promise<Record<string, string>> {
   const descriptions: Record<string, string> = {};
   
-  for (const model of models) {
+  // Create an array of promises for all model processing
+  const modelPromises = models.map(async (model) => {
     try {
       const description = await generateDescriptionWithModel(imagePath, model);
       descriptions[model] = description;
+      
+      // Call the callback if provided
+      if (onModelComplete) {
+        onModelComplete(model, description);
+      }
+      
+      return { model, description, error: null };
     } catch (error) {
+      const errorMessage = `Failed to analyze with ${model}: ${(error as Error).message}`;
       console.error(`Error with model ${model}:`, error);
-      descriptions[model] = `Failed to analyze with ${model}: ${(error as Error).message}`;
+      descriptions[model] = errorMessage;
+      
+      // Call the callback for errors too
+      if (onModelComplete) {
+        onModelComplete(model, errorMessage);
+      }
+      
+      return { model, description: errorMessage, error };
     }
-  }
+  });
+  
+  // Wait for all promises to settle (note: results already sent via callback)
+  await Promise.all(modelPromises);
   
   return descriptions;
 }

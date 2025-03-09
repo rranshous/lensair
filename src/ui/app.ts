@@ -36,11 +36,16 @@ export function initializeApp(imagePath: string, models: string[]) {
     });
     
     // Start AI analysis
-    mainWindow?.webContents.send('analysis-started');
+    mainWindow?.webContents.send('analysis-started', { models });
     
     try {
-      const description = await getImageDescription(imagePath, models);
-      mainWindow?.webContents.send('analysis-complete', description);
+      // Use the callback to send results as they become available
+      await getImageDescription(imagePath, models, (model, description) => {
+        mainWindow?.webContents.send('model-complete', { model, description });
+      });
+      
+      // Send final event indicating all models have completed
+      mainWindow?.webContents.send('analysis-all-complete');
     } catch (error) {
       mainWindow?.webContents.send('analysis-error', { error: (error as Error).message });
     }

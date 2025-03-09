@@ -74,6 +74,29 @@
       margin-bottom: 5px;
       color: #6d8cb5;
     }
+
+    .pending-model {
+      margin-bottom: 10px;
+      color: #888;
+      font-style: italic;
+      display: flex;
+      align-items: center;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(109, 140, 181, 0.3);
+      border-radius: 50%;
+      border-top-color: #6d8cb5;
+      animation: spin 1s linear infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body>
@@ -91,8 +114,9 @@
       <div id="image-metadata"></div>
       
       <h2>AI Analysis</h2>
-      <div id="ai-loading" class="loading">Analyzing image with AI models...</div>
+      <div id="ai-loading" class="loading">Initializing AI analysis...</div>
       <div id="ai-descriptions"></div>
+      <div id="pending-models"></div>
     </div>
   </div>
 
@@ -113,26 +137,57 @@
     });
     
     // Handle analysis events
-    ipcRenderer.on('analysis-started', () => {
-      document.getElementById('ai-loading').style.display = 'block';
-      document.getElementById('ai-descriptions').innerHTML = '';
-    });
-    
-    ipcRenderer.on('analysis-complete', (event, descriptions) => {
-      document.getElementById('ai-loading').style.display = 'none';
+    ipcRenderer.on('analysis-started', (event, { models }) => {
+      const loadingElement = document.getElementById('ai-loading');
+      loadingElement.textContent = 'Processing image with AI models...';
       
       const descriptionsContainer = document.getElementById('ai-descriptions');
-      Object.entries(descriptions).forEach(([model, text]) => {
-        const modelElement = document.createElement('div');
-        modelElement.className = 'model-response';
-        
-        modelElement.innerHTML = `
-          <div class="model-name">${model}</div>
-          <div class="model-output">${text}</div>
+      descriptionsContainer.innerHTML = '';
+      
+      // Show pending models with spinners
+      const pendingContainer = document.getElementById('pending-models');
+      pendingContainer.innerHTML = '';
+      
+      models.forEach(model => {
+        const pendingElement = document.createElement('div');
+        pendingElement.className = 'pending-model';
+        pendingElement.id = `pending-${model}`;
+        pendingElement.innerHTML = `
+          <div class="spinner"></div>
+          <div>Analyzing with ${model}...</div>
         `;
-        
-        descriptionsContainer.appendChild(modelElement);
+        pendingContainer.appendChild(pendingElement);
       });
+    });
+    
+    ipcRenderer.on('model-complete', (event, { model, description }) => {
+      // Remove the pending indicator for this model
+      const pendingElement = document.getElementById(`pending-${model}`);
+      if (pendingElement) {
+        pendingElement.remove();
+      }
+      
+      // Add the completed model response
+      const descriptionsContainer = document.getElementById('ai-descriptions');
+      const modelElement = document.createElement('div');
+      modelElement.className = 'model-response';
+      
+      modelElement.innerHTML = `
+        <div class="model-name">${model}</div>
+        <div class="model-output">${description}</div>
+      `;
+      
+      descriptionsContainer.appendChild(modelElement);
+      
+      // Hide the loading message if visible and if no pending models
+      if (document.getElementById('pending-models').children.length === 0) {
+        document.getElementById('ai-loading').style.display = 'none';
+      }
+    });
+    
+    ipcRenderer.on('analysis-all-complete', () => {
+      document.getElementById('ai-loading').style.display = 'none';
+      document.getElementById('pending-models').innerHTML = '';
     });
     
     ipcRenderer.on('analysis-error', (event, error) => {
