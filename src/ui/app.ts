@@ -65,9 +65,14 @@ async function initializeAnalysis(imagePath: string, models: string[]) {
     // Start AI analysis
     console.log(`Starting analysis with models: ${models.join(', ')}`);
     console.log(`Using prompts: ${DEFAULT_PROMPTS.map(p => `"${p}"`).join(', ')}`);
+    console.log('Models will be processed sequentially (one at a time) to optimize GPU usage');
     
     console.log('Sending analysis-started event to renderer');
-    mainWindow.webContents.send('analysis-started', { models, prompts: DEFAULT_PROMPTS });
+    mainWindow.webContents.send('analysis-started', { 
+      models, 
+      prompts: DEFAULT_PROMPTS,
+      serialProcessing: true
+    });
     
     // Process images with AI models
     try {
@@ -82,12 +87,7 @@ async function initializeAnalysis(imagePath: string, models: string[]) {
             return;
           }
           
-          console.log(`Ready to send model results to UI for ${model} with ${promptResponses.length} responses`);
-          
-          // Log detailed information about what we're sending
-          console.log(`Sending model-complete event with model: ${model}`);
-          console.log(`First response prompt: ${promptResponses?.[0]?.prompt?.slice(0, 30)}...`);
-          console.log(`First response text: ${promptResponses?.[0]?.response?.slice(0, 50)}...`);
+          console.log(`Model ${model} complete with ${promptResponses.length} responses`);
           
           // Send the event with explicit try/catch
           try {

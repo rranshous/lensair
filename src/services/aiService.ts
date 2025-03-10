@@ -39,9 +39,12 @@ export async function getImageDescription(
 ): Promise<Record<string, PromptResponse[]>> {
   const results: Record<string, PromptResponse[]> = {};
   
-  // Create an array of promises for all model processing
-  const modelPromises = models.map(async (model) => {
+  // Process models sequentially instead of in parallel
+  for (const model of models) {
+    console.log(`Processing model: ${model} (${models.indexOf(model) + 1}/${models.length})`);
+    
     try {
+      // Process all prompts for this model
       const promptResponses = await generateDescriptionsWithModel(imagePath, model, prompts);
       results[model] = promptResponses;
       
@@ -49,8 +52,6 @@ export async function getImageDescription(
       if (onModelComplete) {
         onModelComplete(model, promptResponses);
       }
-      
-      return { model, promptResponses, error: null };
     } catch (error) {
       const errorMessage = `Failed to analyze with ${model}: ${(error as Error).message}`;
       console.error(`Error with model ${model}:`, error);
@@ -67,13 +68,8 @@ export async function getImageDescription(
       if (onModelComplete) {
         onModelComplete(model, errorResponses);
       }
-      
-      return { model, promptResponses: errorResponses, error };
     }
-  });
-  
-  // Wait for all promises to settle (note: results already sent via callback)
-  await Promise.all(modelPromises);
+  }
   
   return results;
 }
@@ -93,7 +89,10 @@ async function generateDescriptionsWithModel(
   // Process each prompt sequentially
   const responses: PromptResponse[] = [];
   
-  for (const prompt of prompts) {
+  for (let i = 0; i < prompts.length; i++) {
+    const prompt = prompts[i];
+    console.log(`Processing prompt ${i+1}/${prompts.length} for model ${model}: "${prompt.slice(0, 30)}..."`);
+    
     try {
       // Create request for this prompt
       const requestData = {
@@ -112,7 +111,7 @@ async function generateDescriptionsWithModel(
       });
       
       // Debug the API response structure
-      console.log(`Response from model ${model}:`, JSON.stringify(response.data).slice(0, 200) + '...');
+      console.log(`Response from model ${model} (prompt ${i+1}/${prompts.length}): Response received`);
       
       let responseText = "No description available";
       if (response.data && typeof response.data === 'object') {
@@ -124,6 +123,8 @@ async function generateDescriptionsWithModel(
         prompt: prompt,
         response: responseText
       });
+      
+      console.log(`Completed prompt ${i+1}/${prompts.length} for model ${model}`);
     } catch (error) {
       console.error(`Error getting response for prompt "${prompt}" with model ${model}:`, error);
       responses.push({

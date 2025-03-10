@@ -163,8 +163,11 @@
 
     // Store model responses by prompt
     let responsesByPrompt = {};
-    let pendingModels = new Set();
+    let pendingModels = [];  // Changed from Set to Array to preserve order
+    let currentModel = null;
     let prompts = [];
+    let serialProcessing = false;
+    let allModels = []; // Store all models to reference later
 
     // Log when the script starts running
     console.log('Initializing renderer process and registering IPC handlers');
@@ -184,13 +187,18 @@
     });
     
     // Handle analysis events
-    ipcRenderer.on('analysis-started', (event, { models, prompts: promptsList }) => {
+    ipcRenderer.on('analysis-started', (event, { models, prompts: promptsList, serialProcessing: serial }) => {
       logIpcEvent('analysis-started');
       const loadingElement = document.getElementById('ai-loading');
-      loadingElement.textContent = 'Processing image with AI models...';
+      
+      // Store processing mode
+      serialProcessing = serial;
       
       // Store prompts globally
       prompts = promptsList;
+
+      // Store all models
+      allModels = [...models];
       
       // Initialize data structure for responses
       responsesByPrompt = {};
@@ -198,8 +206,9 @@
         responsesByPrompt[prompt] = {};
       });
       
-      // Track pending models
-      pendingModels = new Set(models);
+      // Track pending models - as an array to preserve order
+      pendingModels = [...models];
+      currentModel = pendingModels[0];
       
       const descriptionsContainer = document.getElementById('ai-descriptions');
       descriptionsContainer.innerHTML = '';
@@ -208,16 +217,45 @@
       const pendingContainer = document.getElementById('pending-models');
       pendingContainer.innerHTML = '';
       
-      models.forEach(model => {
-        const pendingElement = document.createElement('div');
-        pendingElement.className = 'pending-model';
-        pendingElement.id = `pending-${model}`;
-        pendingElement.innerHTML = `
+      // Initial render of empty prompt sections
+      renderResults();
+      
+      if (serialProcessing) {
+        loadingElement.textContent = 'Processing image with AI models (sequential mode for optimal performance)...';
+        
+        // In serial mode, only show the current model being processed
+        const currentElement = document.createElement('div');
+        currentElement.className = 'pending-model';
+        currentElement.id = 'current-model';
+        currentElement.innerHTML = `
           <div class="spinner"></div>
-          <div>Analyzing with ${model} (${promptsList.length} prompts)...</div>
+          <div>Processing with ${currentModel} (${promptsList.length} prompts) - Model 1/${models.length}</div>
         `;
-        pendingContainer.appendChild(pendingElement);
-      });
+        pendingContainer.appendChild(currentElement);
+        
+        // Show queue
+        if (pendingModels.length > 1) {
+          const queueElement = document.createElement('div');
+          queueElement.style.marginTop = '10px';
+          queueElement.style.color = '#888';
+          queueElement.innerHTML = `Models in queue: ${pendingModels.slice(1).join(', ')}`;
+          pendingContainer.appendChild(queueElement);
+        }
+      } else {
+        // Original parallel processing UI
+        loadingElement.textContent = 'Processing image with AI models...';
+        
+        models.forEach(model => {
+          const pendingElement = document.createElement('div');
+          pendingElement.className = 'pending-model';
+          pendingElement.id = `pending-${model}`;
+          pendingElement.innerHTML = `
+            <div class="spinner"></div>
+            <div>Analyzing with ${model} (${promptsList.length} prompts)...</div>
+          `;
+          pendingContainer.appendChild(pendingElement);
+        });
+      }
     });
     
     // Add explicit registration log for model-complete
@@ -233,38 +271,85 @@
       }
       
       const { model, promptResponses } = data;
-      console.log(`Received model results for ${model}:`, promptResponses);
+      console.log(`Received model results for ${model}, ${promptResponses.length} responses`);
       
-      // Remove the pending indicator for this model
-      const pendingElement = document.getElementById(`pending-${model}`);
-      if (pendingElement) {
-        pendingElement.remove();
+      // Remove from pending models array
+      const modelIndex = pendingModels.indexOf(model);
+      if (modelIndex >= 0) {
+        pendingModels.splice(modelIndex, 1);
+        console.log(`Removed ${model} from pending models. Remaining: ${pendingModels.join(', ')}`);
       }
-      
-      // Remove from pending models set
-      pendingModels.delete(model);
       
       // Store responses by prompt
       if (Array.isArray(promptResponses)) {
         promptResponses.forEach(item => {
           if (item.prompt && responsesByPrompt[item.prompt]) {
+            console.log(`Storing response for prompt "${item.prompt.slice(0, 20)}..." from model ${model}`);
             responsesByPrompt[item.prompt][model] = item.response || "No response received";
+          } else {
+            console.warn(`Couldn't find prompt "${item.prompt?.slice(0, 20)}..." in responsesByPrompt`);
           }
         });
       }
       
-      // Render all results
+      // Force re-render of results
+      console.log('Rendering updated results after model completion');
       renderResults();
       
+      // Update UI for next model if in serial mode
+      if (serialProcessing && pendingModels.length > 0) {
+        currentModel = pendingModels[0];
+        const pendingContainer = document.getElementById('pending-models');
+        const currentModelElement = document.getElementById('current-model');
+        
+        if (currentModelElement) {
+          currentModelElement.innerHTML = `
+            <div class="spinner"></div>
+            <div>Processing with ${currentModel} (${prompts.length} prompts) - Model ${allModels.length - pendingModels.length + 1}/${allModels.length}</div>
+          `;
+        }
+        
+        // Update queue display
+        if (pendingModels.length > 1) {
+          // Remove old queue element if it exists
+          const oldQueueElement = pendingContainer.querySelector('div:not(.pending-model)');
+          if (oldQueueElement) {
+            pendingContainer.removeChild(oldQueueElement);
+          }
+          
+          const queueElement = document.createElement('div');
+          queueElement.style.marginTop = '10px';
+          queueElement.style.color = '#888';
+          queueElement.innerHTML = `Models in queue: ${pendingModels.slice(1).join(', ')}`;
+          pendingContainer.appendChild(queueElement);
+        } else {
+          // Remove queue element if no more models in queue
+          const oldQueueElement = pendingContainer.querySelector('div:not(.pending-model)');
+          if (oldQueueElement) {
+            pendingContainer.removeChild(oldQueueElement);
+          }
+        }
+      } else {
+        // If parallel mode or no models left, remove the spinner for this model
+        const pendingElement = document.getElementById(`pending-${model}`);
+        if (pendingElement) {
+          pendingElement.remove();
+        }
+      }
+      
       // Hide the loading message if all models are complete
-      if (pendingModels.size === 0) {
+      if (pendingModels.length === 0) {
         document.getElementById('ai-loading').style.display = 'none';
+        document.getElementById('pending-models').innerHTML = '';
       }
     });
     
     function renderResults() {
+      console.log('Rendering results to UI');
       const descriptionsContainer = document.getElementById('ai-descriptions');
-      descriptionsContainer.innerHTML = '';
+      
+      // Create a document fragment to build the UI (more efficient)
+      const fragment = document.createDocumentFragment();
       
       // For each prompt, create a section
       prompts.forEach(prompt => {
@@ -272,6 +357,7 @@
         
         const promptSection = document.createElement('div');
         promptSection.className = 'prompt-section';
+        promptSection.id = `prompt-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
         
         // Add prompt text as header
         const promptText = document.createElement('div');
@@ -285,6 +371,7 @@
           modelNames.forEach(modelName => {
             const modelItem = document.createElement('div');
             modelItem.className = 'model-response-item';
+            modelItem.id = `response-${modelName}-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
             
             const modelNameEl = document.createElement('div');
             modelNameEl.className = 'model-name';
@@ -301,15 +388,21 @@
         } else {
           // No responses for this prompt yet
           const pendingMessage = document.createElement('div');
-          pendingMessage.className = 'model-response-content';
+          pendingMessage.className = 'model-response-content pending-message';
           pendingMessage.textContent = "Waiting for responses...";
           pendingMessage.style.fontStyle = "italic";
           pendingMessage.style.color = "#888";
           promptSection.appendChild(pendingMessage);
         }
         
-        descriptionsContainer.appendChild(promptSection);
+        fragment.appendChild(promptSection);
       });
+      
+      // Only replace the contents if we have something to show
+      if (prompts.length > 0) {
+        descriptionsContainer.innerHTML = '';
+        descriptionsContainer.appendChild(fragment);
+      }
     }
     
     ipcRenderer.on('analysis-all-complete', () => {
