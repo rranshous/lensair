@@ -106,7 +106,7 @@ For development with hot-reload:
 npm install
 
 # Start development mode
-npm run dev -- /path/to/your/image.jpg
+npm run start:dev -- /path/to/your/image.jpg
 ```
 
 ### Building a Snap Package

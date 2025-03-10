@@ -535,11 +535,6 @@
           // Add highlight effect for new content
           modelItem.classList.add('highlight-new');
           
-          // Scroll this response into view to follow along with progress
-          setTimeout(() => {
-            modelItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }, 100);
-          
           // Add to the prompt section
           promptSection.appendChild(modelItem);
         } else {
