@@ -23,8 +23,7 @@ export const DEFAULT_PROMPTS = [
   "What is the main subject of this image?",
   "Describe the lighting and color scheme of this image.",
   "What is the overall composition of this image?",
-  "Describe any notable objects or elements in the background of this image.",
-  "Is this a high quality image?"
+  "Describe any notable objects or elements in the background of this image."
 ];
 
 /**

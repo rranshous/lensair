@@ -54,6 +54,7 @@
       padding: 20px;
       overflow-y: auto;
       border-left: 1px solid #4a4a4a;
+      padding-bottom: 60px; /* Add padding to avoid content being hidden behind status bar */
     }
     
     .loading {
@@ -130,6 +131,42 @@
     .model-response-content {
       margin-bottom: 12px;
     }
+
+    /* Status bar for processing details */
+    .status-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: #202020;
+      padding: 10px 20px;
+      border-top: 1px solid #4a4a4a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 100;
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.3);
+    }
+
+    .status-bar-content {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .status-message {
+      flex: 1;
+    }
+
+    .queue-info {
+      background-color: #353535;
+      padding: 5px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 400px;
+    }
   </style>
 </head>
 <body>
@@ -150,6 +187,17 @@
       <div id="ai-loading" class="loading">Initializing AI analysis...</div>
       <div id="ai-descriptions"></div>
       <div id="pending-models"></div>
+    </div>
+  </div>
+
+  <!-- New fixed status bar for processing information -->
+  <div id="status-bar" class="status-bar" style="display: none;">
+    <div class="status-bar-content">
+      <div id="current-model-status" class="status-message">
+        <div class="spinner"></div>
+        <span id="current-model-text">Processing...</span>
+      </div>
+      <div id="queue-status" class="queue-info"></div>
     </div>
   </div>
 
@@ -213,48 +261,31 @@
       const descriptionsContainer = document.getElementById('ai-descriptions');
       descriptionsContainer.innerHTML = '';
       
-      // Show pending models with spinners
-      const pendingContainer = document.getElementById('pending-models');
-      pendingContainer.innerHTML = '';
-      
       // Initial render of empty prompt sections
       renderResults();
+      
+      // Show the status bar
+      document.getElementById('status-bar').style.display = 'flex';
       
       if (serialProcessing) {
         loadingElement.textContent = 'Processing image with AI models (sequential mode for optimal performance)...';
         
-        // In serial mode, only show the current model being processed
-        const currentElement = document.createElement('div');
-        currentElement.className = 'pending-model';
-        currentElement.id = 'current-model';
-        currentElement.innerHTML = `
-          <div class="spinner"></div>
-          <div>Processing with ${currentModel} (${promptsList.length} prompts) - Model 1/${models.length}</div>
-        `;
-        pendingContainer.appendChild(currentElement);
+        // Update the current model status
+        const currentModelText = document.getElementById('current-model-text');
+        currentModelText.textContent = `Processing with ${currentModel} (${promptsList.length} prompts) - Model 1/${models.length}`;
         
-        // Show queue
-        if (pendingModels.length > 1) {
-          const queueElement = document.createElement('div');
-          queueElement.style.marginTop = '10px';
-          queueElement.style.color = '#888';
-          queueElement.innerHTML = `Models in queue: ${pendingModels.slice(1).join(', ')}`;
-          pendingContainer.appendChild(queueElement);
-        }
+        // Show queue in the status bar
+        updateQueueStatus(pendingModels.slice(1));
       } else {
         // Original parallel processing UI
         loadingElement.textContent = 'Processing image with AI models...';
         
-        models.forEach(model => {
-          const pendingElement = document.createElement('div');
-          pendingElement.className = 'pending-model';
-          pendingElement.id = `pending-${model}`;
-          pendingElement.innerHTML = `
-            <div class="spinner"></div>
-            <div>Analyzing with ${model} (${promptsList.length} prompts)...</div>
-          `;
-          pendingContainer.appendChild(pendingElement);
-        });
+        // Update status bar for parallel processing
+        const currentModelText = document.getElementById('current-model-text');
+        currentModelText.textContent = `Processing ${models.length} models in parallel`;
+        
+        // No queue in parallel mode
+        document.getElementById('queue-status').style.display = 'none';
       }
     });
     
@@ -299,48 +330,17 @@
       // Update UI for next model if in serial mode
       if (serialProcessing && pendingModels.length > 0) {
         currentModel = pendingModels[0];
-        const pendingContainer = document.getElementById('pending-models');
-        const currentModelElement = document.getElementById('current-model');
         
-        if (currentModelElement) {
-          currentModelElement.innerHTML = `
-            <div class="spinner"></div>
-            <div>Processing with ${currentModel} (${prompts.length} prompts) - Model ${allModels.length - pendingModels.length + 1}/${allModels.length}</div>
-          `;
-        }
+        // Update status bar with current model
+        const currentModelText = document.getElementById('current-model-text');
+        currentModelText.textContent = `Processing with ${currentModel} (${prompts.length} prompts) - Model ${allModels.length - pendingModels.length + 1}/${allModels.length}`;
         
-        // Update queue display
-        if (pendingModels.length > 1) {
-          // Remove old queue element if it exists
-          const oldQueueElement = pendingContainer.querySelector('div:not(.pending-model)');
-          if (oldQueueElement) {
-            pendingContainer.removeChild(oldQueueElement);
-          }
-          
-          const queueElement = document.createElement('div');
-          queueElement.style.marginTop = '10px';
-          queueElement.style.color = '#888';
-          queueElement.innerHTML = `Models in queue: ${pendingModels.slice(1).join(', ')}`;
-          pendingContainer.appendChild(queueElement);
-        } else {
-          // Remove queue element if no more models in queue
-          const oldQueueElement = pendingContainer.querySelector('div:not(.pending-model)');
-          if (oldQueueElement) {
-            pendingContainer.removeChild(oldQueueElement);
-          }
-        }
-      } else {
-        // If parallel mode or no models left, remove the spinner for this model
-        const pendingElement = document.getElementById(`pending-${model}`);
-        if (pendingElement) {
-          pendingElement.remove();
-        }
-      }
-      
-      // Hide the loading message if all models are complete
-      if (pendingModels.length === 0) {
+        // Update queue in status bar
+        updateQueueStatus(pendingModels.slice(1));
+      } else if (pendingModels.length === 0) {
+        // All models complete, hide the status bar
+        document.getElementById('status-bar').style.display = 'none';
         document.getElementById('ai-loading').style.display = 'none';
-        document.getElementById('pending-models').innerHTML = '';
       }
     });
     
@@ -405,10 +405,21 @@
       }
     }
     
+    // Helper function to update queue status
+    function updateQueueStatus(remainingModels) {
+      const queueStatus = document.getElementById('queue-status');
+      if (remainingModels.length > 0) {
+        queueStatus.textContent = `Queue: ${remainingModels.join(', ')}`;
+        queueStatus.style.display = 'block';
+      } else {
+        queueStatus.style.display = 'none';
+      }
+    }
+    
     ipcRenderer.on('analysis-all-complete', () => {
       logIpcEvent('analysis-all-complete');
       document.getElementById('ai-loading').style.display = 'none';
-      document.getElementById('pending-models').innerHTML = '';
+      document.getElementById('status-bar').style.display = 'none';
       // Final render to ensure everything is displayed correctly
       renderResults();
     });
