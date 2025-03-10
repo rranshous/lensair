@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc && mkdir -p dist/ui && cp src/ui/index.html dist/ui/",
     "start": "electron .",
+    "start:dev": "npm run build && npm run start",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
     "install:snap": "rm build/lensair_*_amd64.snap && npm run dist && snap install --dangerous build/lensair_*_amd64.snap"

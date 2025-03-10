@@ -231,8 +231,9 @@
       console.log(`IPC event '${eventName}' received at ${new Date().toISOString()}`);
     }
 
-    // Store model responses by prompt
+    // Store model responses by prompt with proper indexing
     let responsesByPrompt = {};
+    let promptIdMap = new Map(); // Map to track prompt IDs
     let pendingModels = [];  // Changed from Set to Array to preserve order
     let currentModel = null;
     let prompts = [];
@@ -259,6 +260,17 @@
       `;
     });
     
+    // Generate a unique ID for a prompt based on its index
+    function getPromptId(prompt, index) {
+      // Use prompt index in the array for more reliable identification
+      return `prompt-${index}`;
+    }
+    
+    // Get response ID for a model and prompt
+    function getResponseId(model, promptIndex) {
+      return `response-${model}-${promptIndex}`;
+    }
+    
     // Handle analysis events
     ipcRenderer.on('analysis-started', (event, { models, prompts: promptsList, serialProcessing: serial }) => {
       logIpcEvent('analysis-started');
@@ -273,21 +285,22 @@
       // Store all models
       allModels = [...models];
       
-      // Initialize data structure for responses
+      // Initialize data structure for responses and ID mapping
       responsesByPrompt = {};
-      promptsList.forEach(prompt => {
+      promptIdMap = new Map();
+      
+      // Create prompt ID mappings
+      promptsList.forEach((prompt, index) => {
         responsesByPrompt[prompt] = {};
+        promptIdMap.set(prompt, index);
       });
       
       // Track pending models - as an array to preserve order
       pendingModels = [...models];
       currentModel = pendingModels[0];
       
-      const descriptionsContainer = document.getElementById('ai-descriptions');
-      descriptionsContainer.innerHTML = '';
-      
-      // Initial render of empty prompt sections
-      renderResults();
+      // Initialize empty prompt sections in the correct order
+      initializePromptSections();
       
       // Reset the current prompt index
       currentPromptIndex = 0;
@@ -330,7 +343,7 @@
       logIpcEvent('prompt-complete');
       
       const { model, prompt, response, promptIndex, totalPrompts } = data;
-      console.log(`Prompt complete for model ${model}: ${promptIndex+1}/${totalPrompts}`);
+      console.log(`Prompt complete for model ${model}: ${promptIndex+1}/${totalPrompts} - "${prompt.slice(0, 30)}..."`);
       
       // Update the prompt progress in the status bar
       if (currentModel === model) {
@@ -343,10 +356,17 @@
       if (responsesByPrompt[prompt]) {
         responsesByPrompt[prompt][model] = response;
         
-        // Update just this specific prompt and model in the UI
-        updateSinglePromptResponse(prompt, model, response);
+        // Get the index of this prompt in our array (more reliable than string-based IDs)
+        const promptIndex = promptIdMap.get(prompt);
+        
+        if (promptIndex !== undefined) {
+          // Update just this specific prompt and model in the UI
+          updateSinglePromptResponse(prompt, model, response, promptIndex);
+        } else {
+          console.error(`Could not find index for prompt: "${prompt.slice(0, 30)}..."`);
+        }
       } else {
-        console.warn(`Couldn't find prompt "${prompt.slice(0, 20)}..." in responsesByPrompt`);
+        console.warn(`Couldn't find prompt in responsesByPrompt: "${prompt.slice(0, 30)}..."`);
       }
     });
     
@@ -411,19 +431,22 @@
     });
     
     function renderResults() {
-      console.log('Rendering results to UI');
+      console.log('Rendering all results to UI');
       const descriptionsContainer = document.getElementById('ai-descriptions');
       
       // Create a document fragment to build the UI (more efficient)
       const fragment = document.createDocumentFragment();
       
-      // For each prompt, create a section
-      prompts.forEach(prompt => {
+      // Render prompts in the exact order they were defined
+      prompts.forEach((prompt, index) => {
+        const promptId = getPromptId(prompt, index);
+        console.log(`Rendering prompt ${index+1}/${prompts.length}: ${promptId}`);
+        
         const modelResponses = responsesByPrompt[prompt] || {};
         
         const promptSection = document.createElement('div');
         promptSection.className = 'prompt-section';
-        promptSection.id = `prompt-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
+        promptSection.id = promptId;
         
         // Add prompt text as header
         const promptText = document.createElement('div');
@@ -435,9 +458,11 @@
         const modelNames = Object.keys(modelResponses);
         if (modelNames.length > 0) {
           modelNames.forEach(modelName => {
+            const responseId = getResponseId(modelName, index);
+            
             const modelItem = document.createElement('div');
             modelItem.className = 'model-response-item';
-            modelItem.id = `response-${modelName}-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
+            modelItem.id = responseId;
             
             const modelNameEl = document.createElement('div');
             modelNameEl.className = 'model-name';
@@ -466,16 +491,18 @@
       
       // Only replace the contents if we have something to show
       if (prompts.length > 0) {
-        descriptionsContainer.innerHTML = '';
+        descriptionsContainer.innerHTML = ''; // Clear first
         descriptionsContainer.appendChild(fragment);
       }
     }
     
     // Function to update a single prompt response without re-rendering everything
-    function updateSinglePromptResponse(prompt, model, response) {
-      // Create an ID for the prompt section and response item based on the prompt text
-      const promptId = `prompt-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
-      const responseId = `response-${model}-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
+    function updateSinglePromptResponse(prompt, model, response, promptIndex) {
+      // Get IDs based on indices rather than prompt text
+      const promptId = getPromptId(prompt, promptIndex);
+      const responseId = getResponseId(model, promptIndex);
+      
+      console.log(`Updating response: promptId=${promptId}, responseId=${responseId}`);
       
       const promptSection = document.getElementById(promptId);
       
@@ -508,6 +535,11 @@
           // Add highlight effect for new content
           modelItem.classList.add('highlight-new');
           
+          // Scroll this response into view to follow along with progress
+          setTimeout(() => {
+            modelItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 100);
+          
           // Add to the prompt section
           promptSection.appendChild(modelItem);
         } else {
@@ -520,10 +552,44 @@
           }
         }
       } else {
-        // If the prompt section doesn't exist yet, we need to render everything
-        console.log('Prompt section not found, re-rendering all results');
+        console.error(`Prompt section not found: ${promptId}`);
+        // If the section doesn't exist, full rerender may be needed
         renderResults();
       }
+    }
+    
+    // Helper function to initialize empty prompt sections for all prompts
+    function initializePromptSections() {
+      console.log(`Initializing ${prompts.length} prompt sections`);
+      const descriptionsContainer = document.getElementById('ai-descriptions');
+      descriptionsContainer.innerHTML = ''; // Clear existing content
+      
+      // Create sections for all prompts in the correct order
+      prompts.forEach((prompt, index) => {
+        const promptId = getPromptId(prompt, index);
+        
+        console.log(`Creating section for prompt ${index+1}/${prompts.length}: ${promptId} - "${prompt.slice(0, 30)}..."`);
+        
+        const promptSection = document.createElement('div');
+        promptSection.className = 'prompt-section';
+        promptSection.id = promptId;
+        
+        // Add prompt text as header
+        const promptText = document.createElement('div');
+        promptText.className = 'prompt-text';
+        promptText.textContent = prompt;
+        promptSection.appendChild(promptText);
+        
+        // Add waiting message
+        const pendingMessage = document.createElement('div');
+        pendingMessage.className = 'model-response-content pending-message';
+        pendingMessage.textContent = "Waiting for responses...";
+        pendingMessage.style.fontStyle = "italic";
+        pendingMessage.style.color = "#888";
+        promptSection.appendChild(pendingMessage);
+        
+        descriptionsContainer.appendChild(promptSection);
+      });
     }
     
     // Helper function to update queue status
