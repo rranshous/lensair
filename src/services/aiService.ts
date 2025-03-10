@@ -1,6 +1,5 @@
 import axios from 'axios';
 import * as fs from 'fs';
-import * as FormData from 'form-data';
 
 interface PromptResponse {
   prompt: string;
@@ -19,9 +18,13 @@ export const DEFAULT_PROMPTS = [
   "Describe this image in detail, including what you see and any notable elements.",
   "What emotions or mood does this image convey?",
   "Identify any text present in this image.",
-  "Are there any watermarks or logos visible in this image? Describe their content and position.",
+  "Are there any watermarks, transparent text or logos visible in this image? Describe their content and position.",
   "Is there nudity present in this image?",
-  "Respond in parsable JSON. Do not respond in markdown. Use the following response schema: { description: string, emotions: string, text: string, watermarks: string, facesShown: number, peopleShown: number, animalsShown: number, setting: string }"
+  "What is the main subject of this image?",
+  "Describe the lighting and color scheme of this image.",
+  "What is the overall composition of this image?",
+  "What is the image resolution and aspect ratio?",
+  "Describe any notable objects or elements in the background of this image."
 ];
 
 /**
