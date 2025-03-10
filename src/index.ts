@@ -4,6 +4,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { initializeApp } from './ui/app';
 
+// Handle running as a Snap package
+if (process.env.SNAP) {
+  // Adjust paths as needed for Snap environment
+  process.env.OLLAMA_API_URL = process.env.OLLAMA_API_URL || 'http://localhost:11434/api';
+}
+
 // Parse command line arguments
 const program = new Command();
 program

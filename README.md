@@ -27,6 +27,18 @@ This application requires [Ollama](https://ollama.ai/) to be installed and runni
 
 ## Installation
 
+### Option 1: Snap Installation (Recommended for Ubuntu)
+
+```bash
+# Install directly from Snap Store
+sudo snap install fullview
+
+# Or install from the local snap file
+sudo snap install fullview_1.0.0_amd64.snap --dangerous
+```
+
+### Option 2: Manual Installation
+
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -41,7 +53,13 @@ npm run build
 
 ## Usage
 
-### Basic Usage
+### When installed via Snap
+
+```bash
+fullview /path/to/your/image.jpg
+```
+
+### When installed manually
 
 ```bash
 npm start -- /path/to/your/image.jpg
@@ -67,17 +85,17 @@ Options:
 
 View an image using default models (moondream and llava):
 ```bash
-npm start -- ~/Pictures/vacation.jpg
+fullview ~/Pictures/vacation.jpg
 ```
 
 View an image using only a specific model:
 ```bash
-npm start -- ~/Pictures/vacation.jpg --models llava
+fullview ~/Pictures/vacation.jpg --models llava
 ```
 
 Use custom models (must be available in Ollama):
 ```bash
-npm start -- ~/Pictures/vacation.jpg --models bakllava,moondream
+fullview ~/Pictures/vacation.jpg --models bakllava,moondream
 ```
 
 ## Development
@@ -91,9 +109,23 @@ npm install
 npm run dev -- /path/to/your/image.jpg
 ```
 
+### Building a Snap Package
+
+```bash
+# Install snapcraft if not already installed
+sudo snap install snapcraft --classic
+
+# Build the snap package
+npm run dist
+
+# Install the locally built snap
+sudo snap install fullview_1.0.0_amd64.snap --dangerous --classic
+```
+
 ## Implementation Details
 
 - AI models are served via Ollama
 - AI models used for description: moondream, llava
 - Image descriptions are built using the responses from multiple models
 - Application code is written in TypeScript
+- Packaged as a Snap for easy installation on Ubuntu and other Linux distributions
