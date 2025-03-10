@@ -97,6 +97,23 @@
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
+
+    .prompt-section {
+      margin-top: 12px;
+      padding-left: 8px;
+      border-left: 2px solid #454545;
+    }
+    
+    .prompt-text {
+      font-style: italic;
+      color: #aaa;
+      margin-bottom: 5px;
+      font-size: 0.9em;
+    }
+    
+    .prompt-response {
+      margin-bottom: 12px;
+    }
   </style>
 </head>
 <body>
@@ -123,8 +140,17 @@
   <script>
     const { ipcRenderer } = require('electron');
     
+    // Debug helper to track IPC events
+    function logIpcEvent(eventName) {
+      console.log(`IPC event '${eventName}' received at ${new Date().toISOString()}`);
+    }
+
+    // Log when the script starts running
+    console.log('Initializing renderer process and registering IPC handlers');
+    
     // Handle image loaded event
     ipcRenderer.on('image-loaded', (event, data) => {
+      logIpcEvent('image-loaded');
       document.getElementById('main-image').src = data.path;
       
       const metadataElement = document.getElementById('image-metadata');
@@ -137,7 +163,8 @@
     });
     
     // Handle analysis events
-    ipcRenderer.on('analysis-started', (event, { models }) => {
+    ipcRenderer.on('analysis-started', (event, { models, prompts }) => {
+      logIpcEvent('analysis-started');
       const loadingElement = document.getElementById('ai-loading');
       loadingElement.textContent = 'Processing image with AI models...';
       
@@ -154,13 +181,27 @@
         pendingElement.id = `pending-${model}`;
         pendingElement.innerHTML = `
           <div class="spinner"></div>
-          <div>Analyzing with ${model}...</div>
+          <div>Analyzing with ${model} (${prompts.length} prompts)...</div>
         `;
         pendingContainer.appendChild(pendingElement);
       });
     });
     
-    ipcRenderer.on('model-complete', (event, { model, description }) => {
+    // Add explicit registration log for model-complete
+    console.log('Registering handler for "model-complete" event');
+    
+    ipcRenderer.on('model-complete', (event, data) => {
+      logIpcEvent('model-complete');
+      
+      // Validate the expected data structure
+      if (!data || !data.model) {
+        console.error('Invalid data received in model-complete event:', data);
+        return;
+      }
+      
+      const { model, promptResponses } = data;
+      console.log(`Received model results for ${model}:`, promptResponses);
+      
       // Remove the pending indicator for this model
       const pendingElement = document.getElementById(`pending-${model}`);
       if (pendingElement) {
@@ -172,10 +213,46 @@
       const modelElement = document.createElement('div');
       modelElement.className = 'model-response';
       
-      modelElement.innerHTML = `
-        <div class="model-name">${model}</div>
-        <div class="model-output">${description}</div>
-      `;
+      // Create model header
+      const modelHeader = document.createElement('div');
+      modelHeader.className = 'model-name';
+      modelHeader.textContent = model;
+      modelElement.appendChild(modelHeader);
+      
+      // Add each prompt and response
+      if (Array.isArray(promptResponses)) {
+        promptResponses.forEach(item => {
+          const promptSection = document.createElement('div');
+          promptSection.className = 'prompt-section';
+          
+          const promptText = document.createElement('div');
+          promptText.className = 'prompt-text';
+          promptText.textContent = item.prompt || "Unknown prompt";
+          promptSection.appendChild(promptText);
+          
+          const promptResponse = document.createElement('div');
+          promptResponse.className = 'prompt-response';
+          
+          // Make sure we have a valid response text
+          const responseText = (item.response !== undefined && item.response !== null) 
+            ? item.response 
+            : "No response received";
+          
+          promptResponse.textContent = responseText;
+          promptSection.appendChild(promptResponse);
+          
+          modelElement.appendChild(promptSection);
+        });
+      } else {
+        // Handle case where promptResponses is not an array
+        const errorMessage = document.createElement('div');
+        errorMessage.className = 'prompt-response';
+        errorMessage.textContent = "Error: Invalid response format received from model";
+        errorMessage.style.color = "#ff6b6b";
+        modelElement.appendChild(errorMessage);
+        
+        console.error("Invalid promptResponses format:", promptResponses);
+      }
       
       descriptionsContainer.appendChild(modelElement);
       
@@ -186,13 +263,19 @@
     });
     
     ipcRenderer.on('analysis-all-complete', () => {
+      logIpcEvent('analysis-all-complete');
       document.getElementById('ai-loading').style.display = 'none';
       document.getElementById('pending-models').innerHTML = '';
     });
     
     ipcRenderer.on('analysis-error', (event, error) => {
+      logIpcEvent('analysis-error');
       document.getElementById('ai-loading').innerHTML = 'Error analyzing image: ' + error.error;
     });
+
+    // Test IPC mechanism
+    console.log('Sending test message to main process');
+    ipcRenderer.send('renderer-ready', { timestamp: Date.now() });
   </script>
 </body>
 </html>

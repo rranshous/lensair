@@ -6,7 +6,7 @@
   "author": "Robby Ranshous <rranshous@gmail.com> (https://www.fake.com)",
   "homepage": "https://fake.com",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/ui && cp src/ui/index.html dist/ui/",
     "start": "electron .",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
