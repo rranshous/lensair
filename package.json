@@ -1,5 +1,5 @@
 {
-  "name": "fullview",
+  "name": "lensair",
   "version": "1.0.0",
   "description": "An intelligent image viewer with AI-powered descriptions",
   "main": "dist/index.js",
@@ -24,8 +24,8 @@
     "typescript": "^5.8.2"
   },
   "build": {
-    "appId": "com.fullview.app",
-    "productName": "fUllVIew",
+    "appId": "com.lensair.app",
+    "productName": "lensair",
     "copyright": "Copyright © 2024 Robby Ranshous",
     "files": [
       "dist/**/*",

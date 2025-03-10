@@ -1,4 +1,4 @@
-# fUllVIew
+# lensair
 
 This is an image viewer which runs on Ubuntu 24.
 
@@ -31,10 +31,10 @@ This application requires [Ollama](https://ollama.ai/) to be installed and runni
 
 ```bash
 # Install directly from Snap Store
-sudo snap install fullview
+sudo snap install lensair
 
 # Or install from the local snap file
-sudo snap install fullview_1.0.0_amd64.snap --dangerous
+sudo snap install lensair_1.0.0_amd64.snap --dangerous
 ```
 
 ### Option 2: Manual Installation
@@ -42,7 +42,7 @@ sudo snap install fullview_1.0.0_amd64.snap --dangerous
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd fullview
+cd lensair
 
 # Install dependencies
 npm install
@@ -56,7 +56,7 @@ npm run build
 ### When installed via Snap
 
 ```bash
-fullview /path/to/your/image.jpg
+lensair /path/to/your/image.jpg
 ```
 
 ### When installed manually
@@ -68,7 +68,7 @@ npm start -- /path/to/your/image.jpg
 ### Command Line Options
 
 ```
-Usage: fullview [options] <imagePath>
+Usage: lensair [options] <imagePath>
 
 AI-powered image viewer
 
@@ -85,17 +85,17 @@ Options:
 
 View an image using default models (moondream and llava):
 ```bash
-fullview ~/Pictures/vacation.jpg
+lensair ~/Pictures/vacation.jpg
 ```
 
 View an image using only a specific model:
 ```bash
-fullview ~/Pictures/vacation.jpg --models llava
+lensair ~/Pictures/vacation.jpg --models llava
 ```
 
 Use custom models (must be available in Ollama):
 ```bash
-fullview ~/Pictures/vacation.jpg --models bakllava,moondream
+lensair ~/Pictures/vacation.jpg --models bakllava,moondream
 ```
 
 ## Development
@@ -119,7 +119,7 @@ sudo snap install snapcraft --classic
 npm run dist
 
 # Install the locally built snap
-sudo snap install fullview_1.0.0_amd64.snap --dangerous --classic
+sudo snap install lensair_1.0.0_amd64.snap --dangerous --classic
 ```
 
 ## Implementation Details

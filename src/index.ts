@@ -13,7 +13,7 @@ if (process.env.SNAP) {
 // Parse command line arguments
 const program = new Command();
 program
-  .name('fullview')
+  .name('lensair')
   .description('AI-powered image viewer')
   .version('1.0.0')
   .argument('<imagePath>', 'Path to the image file')
