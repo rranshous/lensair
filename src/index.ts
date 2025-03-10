@@ -17,7 +17,7 @@ program
   .description('AI-powered image viewer')
   .version('1.0.0')
   .argument('<imagePath>', 'Path to the image file')
-  .option('-m, --models <models>', 'AI models to use for analysis (comma-separated)', 'moondream,llava-phi3,llava')
+  .option('-m, --models <models>', 'AI models to use for analysis (comma-separated)', 'moondream,llava-phi3,llava,minicpm-v,llama3.2-vision')
   .parse(process.argv);
 
 const options = program.opts();
