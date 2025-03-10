@@ -9,7 +9,8 @@
     "build": "tsc && mkdir -p dist/ui && cp src/ui/index.html dist/ui/",
     "start": "electron .",
     "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "dist": "npm run build && electron-builder",
+    "install:snap": "rm build/lensair_*_amd64.snap && npm run dist && snap install --dangerous build/lensair_*_amd64.snap"
   },
   "license": "MIT",
   "dependencies": {
