@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>lensair</title>
+  <title>lensair anson</title>
   <style>
     body {
       font-family: 'Ubuntu', sans-serif;
@@ -99,19 +99,35 @@
     }
 
     .prompt-section {
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #2c2c2c;
+      border-radius: 5px;
+      border-left: 3px solid #6d8cb5;
+    }
+    
+    .prompt-text {
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #6d8cb5;
+      font-size: 1em;
+      font-style: normal;
+    }
+    
+    .model-response-item {
       margin-top: 12px;
       padding-left: 8px;
       border-left: 2px solid #454545;
     }
     
-    .prompt-text {
-      font-style: italic;
+    .model-name {
+      font-weight: bold;
       color: #aaa;
       margin-bottom: 5px;
       font-size: 0.9em;
     }
     
-    .prompt-response {
+    .model-response-content {
       margin-bottom: 12px;
     }
   </style>
@@ -145,6 +161,11 @@
       console.log(`IPC event '${eventName}' received at ${new Date().toISOString()}`);
     }
 
+    // Store model responses by prompt
+    let responsesByPrompt = {};
+    let pendingModels = new Set();
+    let prompts = [];
+
     // Log when the script starts running
     console.log('Initializing renderer process and registering IPC handlers');
     
@@ -163,10 +184,22 @@
     });
     
     // Handle analysis events
-    ipcRenderer.on('analysis-started', (event, { models, prompts }) => {
+    ipcRenderer.on('analysis-started', (event, { models, prompts: promptsList }) => {
       logIpcEvent('analysis-started');
       const loadingElement = document.getElementById('ai-loading');
       loadingElement.textContent = 'Processing image with AI models...';
+      
+      // Store prompts globally
+      prompts = promptsList;
+      
+      // Initialize data structure for responses
+      responsesByPrompt = {};
+      promptsList.forEach(prompt => {
+        responsesByPrompt[prompt] = {};
+      });
+      
+      // Track pending models
+      pendingModels = new Set(models);
       
       const descriptionsContainer = document.getElementById('ai-descriptions');
       descriptionsContainer.innerHTML = '';
@@ -181,7 +214,7 @@
         pendingElement.id = `pending-${model}`;
         pendingElement.innerHTML = `
           <div class="spinner"></div>
-          <div>Analyzing with ${model} (${prompts.length} prompts)...</div>
+          <div>Analyzing with ${model} (${promptsList.length} prompts)...</div>
         `;
         pendingContainer.appendChild(pendingElement);
       });
@@ -208,64 +241,83 @@
         pendingElement.remove();
       }
       
-      // Add the completed model response
-      const descriptionsContainer = document.getElementById('ai-descriptions');
-      const modelElement = document.createElement('div');
-      modelElement.className = 'model-response';
+      // Remove from pending models set
+      pendingModels.delete(model);
       
-      // Create model header
-      const modelHeader = document.createElement('div');
-      modelHeader.className = 'model-name';
-      modelHeader.textContent = model;
-      modelElement.appendChild(modelHeader);
-      
-      // Add each prompt and response
+      // Store responses by prompt
       if (Array.isArray(promptResponses)) {
         promptResponses.forEach(item => {
-          const promptSection = document.createElement('div');
-          promptSection.className = 'prompt-section';
-          
-          const promptText = document.createElement('div');
-          promptText.className = 'prompt-text';
-          promptText.textContent = item.prompt || "Unknown prompt";
-          promptSection.appendChild(promptText);
-          
-          const promptResponse = document.createElement('div');
-          promptResponse.className = 'prompt-response';
-          
-          // Make sure we have a valid response text
-          const responseText = (item.response !== undefined && item.response !== null) 
-            ? item.response 
-            : "No response received";
-          
-          promptResponse.textContent = responseText;
-          promptSection.appendChild(promptResponse);
-          
-          modelElement.appendChild(promptSection);
+          if (item.prompt && responsesByPrompt[item.prompt]) {
+            responsesByPrompt[item.prompt][model] = item.response || "No response received";
+          }
         });
-      } else {
-        // Handle case where promptResponses is not an array
-        const errorMessage = document.createElement('div');
-        errorMessage.className = 'prompt-response';
-        errorMessage.textContent = "Error: Invalid response format received from model";
-        errorMessage.style.color = "#ff6b6b";
-        modelElement.appendChild(errorMessage);
-        
-        console.error("Invalid promptResponses format:", promptResponses);
       }
       
-      descriptionsContainer.appendChild(modelElement);
+      // Render all results
+      renderResults();
       
-      // Hide the loading message if visible and if no pending models
-      if (document.getElementById('pending-models').children.length === 0) {
+      // Hide the loading message if all models are complete
+      if (pendingModels.size === 0) {
         document.getElementById('ai-loading').style.display = 'none';
       }
     });
+    
+    function renderResults() {
+      const descriptionsContainer = document.getElementById('ai-descriptions');
+      descriptionsContainer.innerHTML = '';
+      
+      // For each prompt, create a section
+      prompts.forEach(prompt => {
+        const modelResponses = responsesByPrompt[prompt] || {};
+        
+        const promptSection = document.createElement('div');
+        promptSection.className = 'prompt-section';
+        
+        // Add prompt text as header
+        const promptText = document.createElement('div');
+        promptText.className = 'prompt-text';
+        promptText.textContent = prompt;
+        promptSection.appendChild(promptText);
+        
+        // Add each model's response for this prompt
+        const modelNames = Object.keys(modelResponses);
+        if (modelNames.length > 0) {
+          modelNames.forEach(modelName => {
+            const modelItem = document.createElement('div');
+            modelItem.className = 'model-response-item';
+            
+            const modelNameEl = document.createElement('div');
+            modelNameEl.className = 'model-name';
+            modelNameEl.textContent = modelName;
+            modelItem.appendChild(modelNameEl);
+            
+            const modelResponseContent = document.createElement('div');
+            modelResponseContent.className = 'model-response-content';
+            modelResponseContent.textContent = modelResponses[modelName];
+            modelItem.appendChild(modelResponseContent);
+            
+            promptSection.appendChild(modelItem);
+          });
+        } else {
+          // No responses for this prompt yet
+          const pendingMessage = document.createElement('div');
+          pendingMessage.className = 'model-response-content';
+          pendingMessage.textContent = "Waiting for responses...";
+          pendingMessage.style.fontStyle = "italic";
+          pendingMessage.style.color = "#888";
+          promptSection.appendChild(pendingMessage);
+        }
+        
+        descriptionsContainer.appendChild(promptSection);
+      });
+    }
     
     ipcRenderer.on('analysis-all-complete', () => {
       logIpcEvent('analysis-all-complete');
       document.getElementById('ai-loading').style.display = 'none';
       document.getElementById('pending-models').innerHTML = '';
+      // Final render to ensure everything is displayed correctly
+      renderResults();
     });
     
     ipcRenderer.on('analysis-error', (event, error) => {
