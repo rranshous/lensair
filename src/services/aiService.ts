@@ -19,7 +19,7 @@ export const DEFAULT_PROMPTS = [
   "What emotions or mood does this image convey?",
   "Identify any text present in this image.",
   "Are there any watermarks, transparent text or logos visible in this image? Describe their content and position.",
-  "Is there nudity present in this image?",
+  "Is there any human nudity in this image?",
   "What is the main subject of this image?",
   "Describe the lighting and color scheme of this image.",
   "What is the overall composition of this image?",
@@ -31,12 +31,14 @@ export const DEFAULT_PROMPTS = [
  * @param imagePath Path to the image file
  * @param models List of models to use
  * @param prompts List of prompts to send to each model
- * @param onModelComplete Callback when a single model completes
+ * @param onPromptComplete Callback when a single prompt completes
+ * @param onModelComplete Callback when all prompts for a model complete
  */
 export async function getImageDescription(
   imagePath: string, 
   models: string[], 
   prompts: string[] = DEFAULT_PROMPTS,
+  onPromptComplete?: (model: string, prompt: string, response: string, promptIndex: number, totalPrompts: number) => void,
   onModelComplete?: (model: string, promptResponses: PromptResponse[]) => void
 ): Promise<Record<string, PromptResponse[]>> {
   const results: Record<string, PromptResponse[]> = {};
@@ -47,7 +49,12 @@ export async function getImageDescription(
     
     try {
       // Process all prompts for this model
-      const promptResponses = await generateDescriptionsWithModel(imagePath, model, prompts);
+      const promptResponses = await generateDescriptionsWithModel(
+        imagePath, 
+        model, 
+        prompts, 
+        onPromptComplete
+      );
       results[model] = promptResponses;
       
       // Call the callback if provided
@@ -82,7 +89,8 @@ export async function getImageDescription(
 async function generateDescriptionsWithModel(
   imagePath: string, 
   model: string, 
-  prompts: string[]
+  prompts: string[],
+  onPromptComplete?: (model: string, prompt: string, response: string, promptIndex: number, totalPrompts: number) => void
 ): Promise<PromptResponse[]> {
   // Read the image as base64
   const imageBuffer = fs.readFileSync(imagePath);
@@ -121,18 +129,32 @@ async function generateDescriptionsWithModel(
         responseText = response.data.response || responseText;
       }
       
-      responses.push({
+      const promptResponse = {
         prompt: prompt,
         response: responseText
-      });
+      };
+      
+      responses.push(promptResponse);
+      
+      // Call the callback for this single prompt completion if provided
+      if (onPromptComplete) {
+        onPromptComplete(model, prompt, responseText, i, prompts.length);
+      }
       
       console.log(`Completed prompt ${i+1}/${prompts.length} for model ${model}`);
     } catch (error) {
       console.error(`Error getting response for prompt "${prompt}" with model ${model}:`, error);
+      const errorResponse = `Error: ${(error as Error).message || "Unknown error occurred"}`;
+      
       responses.push({
         prompt: prompt,
-        response: `Error: ${(error as Error).message || "Unknown error occurred"}`
+        response: errorResponse
       });
+      
+      // Call the error callback for this prompt
+      if (onPromptComplete) {
+        onPromptComplete(model, prompt, errorResponse, i, prompts.length);
+      }
     }
   }
   

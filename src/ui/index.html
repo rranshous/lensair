@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>lensair anson</title>
+  <title>lensair</title>
   <style>
     body {
       font-family: 'Ubuntu', sans-serif;
@@ -88,7 +88,7 @@
       display: inline-block;
       width: 16px;
       height: 16px;
-      border: 2px solid rgba(109, 140, 181, 0.3);
+      border: 2px solid rgba(0, 0, 0, 0.3);
       border-radius: 50%;
       border-top-color: #6d8cb5;
       animation: spin 1s linear infinite;
@@ -151,14 +151,17 @@
     .status-bar-content {
       display: flex;
       align-items: center;
-      gap: 15px;
+      flex-grow: 1;
     }
 
     .status-message {
-      flex: 1;
+      flex: 2;
+      display: flex;
+      align-items: center;
     }
 
     .queue-info {
+      flex: 1;
       background-color: #353535;
       padding: 5px 10px;
       border-radius: 4px;
@@ -166,6 +169,24 @@
       overflow: hidden;
       text-overflow: ellipsis;
       max-width: 400px;
+    }
+    
+    .prompt-progress {
+      background-color: #353535;
+      padding: 5px 10px;
+      border-radius: 4px;
+      margin-left: 15px;
+      color: #6d8cb5;
+      font-weight: bold;
+    }
+    
+    .highlight-new {
+      animation: highlightNew 2s ease-in-out;
+    }
+    
+    @keyframes highlightNew {
+      0% { background-color: rgba(109, 140, 181, 0.3); }
+      100% { background-color: transparent; }
     }
   </style>
 </head>
@@ -196,6 +217,7 @@
       <div id="current-model-status" class="status-message">
         <div class="spinner"></div>
         <span id="current-model-text">Processing...</span>
+        <span id="prompt-progress" class="prompt-progress">Prompt: 0/0</span>
       </div>
       <div id="queue-status" class="queue-info"></div>
     </div>
@@ -216,6 +238,9 @@
     let prompts = [];
     let serialProcessing = false;
     let allModels = []; // Store all models to reference later
+
+    // Track the current prompt being processed
+    let currentPromptIndex = 0;
 
     // Log when the script starts running
     console.log('Initializing renderer process and registering IPC handlers');
@@ -264,6 +289,9 @@
       // Initial render of empty prompt sections
       renderResults();
       
+      // Reset the current prompt index
+      currentPromptIndex = 0;
+      
       // Show the status bar
       document.getElementById('status-bar').style.display = 'flex';
       
@@ -273,6 +301,11 @@
         // Update the current model status
         const currentModelText = document.getElementById('current-model-text');
         currentModelText.textContent = `Processing with ${currentModel} (${promptsList.length} prompts) - Model 1/${models.length}`;
+        
+        // Initialize prompt progress
+        const promptProgress = document.getElementById('prompt-progress');
+        promptProgress.textContent = `Prompt: 1/${promptsList.length}`;
+        promptProgress.style.display = 'inline-block';
         
         // Show queue in the status bar
         updateQueueStatus(pendingModels.slice(1));
@@ -284,8 +317,36 @@
         const currentModelText = document.getElementById('current-model-text');
         currentModelText.textContent = `Processing ${models.length} models in parallel`;
         
+        // Hide prompt progress in parallel mode
+        document.getElementById('prompt-progress').style.display = 'none';
+        
         // No queue in parallel mode
         document.getElementById('queue-status').style.display = 'none';
+      }
+    });
+    
+    // Add handler for prompt-complete events
+    ipcRenderer.on('prompt-complete', (event, data) => {
+      logIpcEvent('prompt-complete');
+      
+      const { model, prompt, response, promptIndex, totalPrompts } = data;
+      console.log(`Prompt complete for model ${model}: ${promptIndex+1}/${totalPrompts}`);
+      
+      // Update the prompt progress in the status bar
+      if (currentModel === model) {
+        const promptProgress = document.getElementById('prompt-progress');
+        promptProgress.textContent = `Prompt: ${promptIndex+1}/${totalPrompts}`;
+        currentPromptIndex = promptIndex;
+      }
+      
+      // Store this single prompt response
+      if (responsesByPrompt[prompt]) {
+        responsesByPrompt[prompt][model] = response;
+        
+        // Update just this specific prompt and model in the UI
+        updateSinglePromptResponse(prompt, model, response);
+      } else {
+        console.warn(`Couldn't find prompt "${prompt.slice(0, 20)}..." in responsesByPrompt`);
       }
     });
     
@@ -330,10 +391,15 @@
       // Update UI for next model if in serial mode
       if (serialProcessing && pendingModels.length > 0) {
         currentModel = pendingModels[0];
+        currentPromptIndex = 0; // Reset prompt index for the new model
         
         // Update status bar with current model
         const currentModelText = document.getElementById('current-model-text');
         currentModelText.textContent = `Processing with ${currentModel} (${prompts.length} prompts) - Model ${allModels.length - pendingModels.length + 1}/${allModels.length}`;
+        
+        // Reset prompt progress
+        const promptProgress = document.getElementById('prompt-progress');
+        promptProgress.textContent = `Prompt: 1/${prompts.length}`;
         
         // Update queue in status bar
         updateQueueStatus(pendingModels.slice(1));
@@ -402,6 +468,61 @@
       if (prompts.length > 0) {
         descriptionsContainer.innerHTML = '';
         descriptionsContainer.appendChild(fragment);
+      }
+    }
+    
+    // Function to update a single prompt response without re-rendering everything
+    function updateSinglePromptResponse(prompt, model, response) {
+      // Create an ID for the prompt section and response item based on the prompt text
+      const promptId = `prompt-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
+      const responseId = `response-${model}-${prompt.slice(0, 10).replace(/\W+/g, '-').toLowerCase()}`;
+      
+      const promptSection = document.getElementById(promptId);
+      
+      // If the prompt section exists, add or update the model response
+      if (promptSection) {
+        let modelItem = document.getElementById(responseId);
+        
+        // If there's a "waiting for responses" placeholder, remove it
+        const pendingMessage = promptSection.querySelector('.pending-message');
+        if (pendingMessage) {
+          pendingMessage.remove();
+        }
+        
+        // If the model item doesn't exist yet, create it
+        if (!modelItem) {
+          modelItem = document.createElement('div');
+          modelItem.className = 'model-response-item';
+          modelItem.id = responseId;
+          
+          const modelNameEl = document.createElement('div');
+          modelNameEl.className = 'model-name';
+          modelNameEl.textContent = model;
+          modelItem.appendChild(modelNameEl);
+          
+          const modelResponseContent = document.createElement('div');
+          modelResponseContent.className = 'model-response-content';
+          modelResponseContent.textContent = response;
+          modelItem.appendChild(modelResponseContent);
+          
+          // Add highlight effect for new content
+          modelItem.classList.add('highlight-new');
+          
+          // Add to the prompt section
+          promptSection.appendChild(modelItem);
+        } else {
+          // Update existing model response
+          const responseContent = modelItem.querySelector('.model-response-content');
+          if (responseContent) {
+            responseContent.textContent = response;
+            responseContent.classList.add('highlight-new');
+            setTimeout(() => responseContent.classList.remove('highlight-new'), 2000);
+          }
+        }
+      } else {
+        // If the prompt section doesn't exist yet, we need to render everything
+        console.log('Prompt section not found, re-rendering all results');
+        renderResults();
       }
     }
     

@@ -76,11 +76,33 @@ async function initializeAnalysis(imagePath: string, models: string[]) {
     
     // Process images with AI models
     try {
-      // Use the callback to send results as they become available
+      // Use callbacks for both prompt completion and model completion
       await getImageDescription(
         imagePath, 
         models, 
         DEFAULT_PROMPTS,
+        // Prompt completion callback
+        (model, prompt, response, promptIndex, totalPrompts) => {
+          if (!mainWindow) {
+            console.warn('Skipping prompt-complete event as window is closed');
+            return;
+          }
+          
+          console.log(`Model ${model} completed prompt ${promptIndex+1}/${totalPrompts}: "${prompt.slice(0, 30)}..."`);
+          
+          try {
+            mainWindow.webContents.send('prompt-complete', { 
+              model, 
+              prompt, 
+              response,
+              promptIndex, 
+              totalPrompts
+            });
+          } catch (sendError) {
+            console.error('Error sending prompt-complete event:', sendError);
+          }
+        },
+        // Model completion callback
         (model, promptResponses) => {
           if (!mainWindow) {
             console.warn('Skipping model-complete event as window is closed');
@@ -89,7 +111,6 @@ async function initializeAnalysis(imagePath: string, models: string[]) {
           
           console.log(`Model ${model} complete with ${promptResponses.length} responses`);
           
-          // Send the event with explicit try/catch
           try {
             mainWindow.webContents.send('model-complete', { model, promptResponses });
             console.log(`Successfully sent model-complete for ${model}`);
