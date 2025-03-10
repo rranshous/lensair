@@ -18,7 +18,10 @@ const OLLAMA_API_URL = 'http://localhost:11434/api';
 export const DEFAULT_PROMPTS = [
   "Describe this image in detail, including what you see and any notable elements.",
   "What emotions or mood does this image convey?",
-  "Identify any text present in this image."
+  "Identify any text present in this image.",
+  "Are there any watermarks or logos visible in this image? Describe their content and position.",
+  "Is there nudity present in this image?",
+  "Respond in parsable JSON. Do not respond in markdown. Use the following response schema: { description: string, emotions: string, text: string, watermarks: string, facesShown: number, peopleShown: number, animalsShown: number, setting: string }"
 ];
 
 /**
