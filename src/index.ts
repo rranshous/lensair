@@ -22,10 +22,11 @@ program
 
 const options = program.opts();
 const [imagePath] = program.args;
+const fullImagePath = path.resolve(imagePath);
 
 // Validate image path
-if (!fs.existsSync(imagePath)) {
-  console.error(`Error: Image file not found at ${imagePath}`);
+if (!fs.existsSync(fullImagePath)) {
+  console.error(`Error: Image file not found at ${fullImagePath}`);
   process.exit(1);
 }
 
@@ -34,7 +35,7 @@ const models = options.models.split(',').map((model: string) => model.trim());
 
 // Start the electron app
 app.on('ready', () => {
-  initializeApp(imagePath, models);
+  initializeApp(fullImagePath, models);
 });
 
 app.on('window-all-closed', () => {

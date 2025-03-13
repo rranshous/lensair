@@ -1,6 +1,6 @@
 {
   "name": "lensair",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An intelligent image viewer with AI-powered descriptions",
   "main": "dist/index.js",
   "author": "Robby Ranshous <rranshous@gmail.com> (https://www.fake.com)",
