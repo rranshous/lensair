@@ -11,7 +11,7 @@
     "start:dev": "npm run build && npm run start",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder",
-    "install:snap": "rm build/lensair_*_amd64.snap && npm run dist && snap install --dangerous build/lensair_*_amd64.snap"
+    "install:snap": "rm -f build/lensair_*_amd64.* && npm run dist && snap install --classic --dangerous build/lensair_*_amd64.snap"
   },
   "license": "MIT",
   "dependencies": {
